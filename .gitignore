@@ -1,0 +1,52 @@
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# App bundles (built artifacts)
+*.app/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Claude Code
+.claude/
+
+# MCP config (may contain local paths)
+.mcp.json
+
+# Build artifacts
+DerivedData/
+build/
+
+# Logs
+*.log
+
+# Private keys and certificates
+*.p12
+*.cer
+*.mobileprovision
+
+# Temporary files
+*.tmp
+*.temp
+*~

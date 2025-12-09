@@ -1,0 +1,5 @@
+module CRNNoise {
+    header "include/rnnoise.h"
+    link "rnnoise"
+    export *
+}
