@@ -24,14 +24,35 @@ mkdir -p "$OUTPUT_DIR"
 # Step 1: Build the App
 echo "[1/4] Building MicNoiseGate.app..."
 cd "$PROJECT_DIR/MicNoiseGate"
-./build.sh
 
-if [ ! -d "MicNoiseGate.app" ]; then
+# Build app in a clean temporary location to avoid permission conflicts
+APP_BUILD_DIR="$BUILD_DIR/app_build"
+mkdir -p "$APP_BUILD_DIR"
+
+echo "Building for production..."
+PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH swift build -c release
+
+echo "Creating app bundle..."
+mkdir -p "$APP_BUILD_DIR/MicNoiseGate.app/Contents/MacOS"
+mkdir -p "$APP_BUILD_DIR/MicNoiseGate.app/Contents/Resources"
+mkdir -p "$APP_BUILD_DIR/MicNoiseGate.app/Contents/Frameworks"
+
+cp .build/release/MicNoiseGate "$APP_BUILD_DIR/MicNoiseGate.app/Contents/MacOS/"
+cp Info.plist "$APP_BUILD_DIR/MicNoiseGate.app/Contents/"
+
+# Copy RNNoise library
+cp $HOME/.local/lib/librnnoise.0.dylib "$APP_BUILD_DIR/MicNoiseGate.app/Contents/Frameworks/"
+
+# Update library path in executable
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUILD_DIR/MicNoiseGate.app/Contents/MacOS/MicNoiseGate" 2>/dev/null || true
+install_name_tool -change /usr/local/lib/librnnoise.0.dylib @rpath/librnnoise.0.dylib "$APP_BUILD_DIR/MicNoiseGate.app/Contents/MacOS/MicNoiseGate"
+
+if [ ! -d "$APP_BUILD_DIR/MicNoiseGate.app" ]; then
     echo "Error: MicNoiseGate.app not found"
     exit 1
 fi
 
-cp -R "MicNoiseGate.app" "$BUILD_DIR/app_root/Applications/"
+cp -R "$APP_BUILD_DIR/MicNoiseGate.app" "$BUILD_DIR/app_root/Applications/"
 
 # Step 2: Build the Driver
 echo "[2/4] Building MicNoiseGate.driver..."
