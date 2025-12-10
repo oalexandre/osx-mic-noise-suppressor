@@ -1,18 +1,20 @@
 import AppKit
 import SwiftUI
 import CoreAudio
+import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var audioManager = AudioManager()
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Mic Noise Gate")
+            button.image = createStatusBarIcon(isActive: false)
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -22,6 +24,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 320, height: 480)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: ContentView(audioManager: audioManager))
+
+        // Observe noise suppression state changes to update icon
+        audioManager.$isNoiseSuppressionEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.updateStatusBarIcon(isActive: isEnabled)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateStatusBarIcon(isActive: Bool) {
+        statusItem.button?.image = createStatusBarIcon(isActive: isActive)
+    }
+
+    private func createStatusBarIcon(isActive: Bool) -> NSImage {
+        // Use SF Symbol "mic.fill" as base
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        guard let micImage = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Mic Noise Gate")?
+            .withSymbolConfiguration(config) else {
+            return NSImage()
+        }
+
+        if !isActive {
+            return micImage
+        }
+
+        // When active: draw green circle indicator in the corner
+        let size = NSSize(width: 20, height: 18)
+        let newImage = NSImage(size: size)
+        newImage.lockFocus()
+
+        // Draw the mic icon
+        micImage.draw(in: NSRect(x: 0, y: 1, width: 16, height: 16))
+
+        // Draw green circle (status indicator)
+        let dotSize: CGFloat = 7
+        let dotRect = NSRect(x: size.width - dotSize - 1, y: 0, width: dotSize, height: dotSize)
+        NSColor.systemGreen.setFill()
+        NSBezierPath(ovalIn: dotRect).fill()
+
+        newImage.unlockFocus()
+        newImage.isTemplate = false  // Don't use template to keep the green color
+        return newImage
     }
 
     @objc func togglePopover() {
