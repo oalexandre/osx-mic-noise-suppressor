@@ -1,0 +1,9 @@
+#!/bin/bash
+# MicNoiseGate Post-install Script
+# Restarts coreaudiod to load the new driver
+
+echo "Restarting coreaudiod to load driver..."
+launchctl kickstart -kp system/com.apple.audio.coreaudiod
+
+echo "MicNoiseGate installation complete!"
+exit 0

@@ -38,6 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct ContentView: View {
     @ObservedObject var audioManager: AudioManager
+    @State private var showUninstallConfirm = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -59,9 +60,20 @@ struct ContentView: View {
                     Text("Noise Suppression")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    Text(audioManager.isNoiseSuppressionEnabled ? "Active" : "Disabled")
-                        .font(.caption)
-                        .foregroundColor(audioManager.isNoiseSuppressionEnabled ? .green : .secondary)
+                    HStack(spacing: 8) {
+                        Text(audioManager.isNoiseSuppressionEnabled ? "Active" : "Disabled")
+                            .font(.caption)
+                            .foregroundColor(audioManager.isNoiseSuppressionEnabled ? .green : .secondary)
+                        if audioManager.isVirtualMicActive {
+                            Text("Virtual Mic")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.2))
+                                .foregroundColor(.blue)
+                                .cornerRadius(4)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -154,7 +166,18 @@ struct ContentView: View {
                 Text("v1.0")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
                 Spacer()
+
+                Button(action: {
+                    showUninstallConfirm = true
+                }) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("Uninstall MicNoiseGate")
+
                 Button("Quit") {
                     NSApp.terminate(nil)
                 }
@@ -163,5 +186,50 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 320, height: 480)
+        .alert("Uninstall MicNoiseGate", isPresented: $showUninstallConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Uninstall", role: .destructive) {
+                uninstallApp()
+            }
+        } message: {
+            Text("This will remove MicNoiseGate and its audio driver from your system. You'll need to enter your admin password.")
+        }
+    }
+
+    private func uninstallApp() {
+        // Create AppleScript to run uninstall with admin privileges
+        let script = """
+        do shell script "
+        # Stop the app
+        pkill -9 MicNoiseGate 2>/dev/null || true
+
+        # Remove driver
+        rm -rf '/Library/Audio/Plug-Ins/HAL/MicNoiseGate.driver'
+
+        # Restart coreaudiod
+        launchctl kickstart -kp system/com.apple.audio.coreaudiod
+
+        # Remove app
+        rm -rf '/Applications/MicNoiseGate.app'
+
+        # Clean up receipts
+        pkgutil --forget com.micnoisegate.app 2>/dev/null || true
+        pkgutil --forget com.micnoisegate.driver 2>/dev/null || true
+        " with administrator privileges
+        """
+
+        var error: NSDictionary?
+        if let appleScript = NSAppleScript(source: script) {
+            appleScript.executeAndReturnError(&error)
+            if error == nil {
+                // Show success and quit
+                let alert = NSAlert()
+                alert.messageText = "Uninstall Complete"
+                alert.informativeText = "MicNoiseGate has been removed from your system."
+                alert.alertStyle = .informational
+                alert.runModal()
+                NSApp.terminate(nil)
+            }
+        }
     }
 }

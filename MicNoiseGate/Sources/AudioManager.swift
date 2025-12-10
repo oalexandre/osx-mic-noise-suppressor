@@ -29,6 +29,7 @@ class AudioManager: ObservableObject {
             }
         }
     }
+    @Published var isVirtualMicActive: Bool = false
 
     // Waveform data - arrays of samples for visualization
     @Published var inputWaveform: [Float] = Array(repeating: 0, count: 100)
@@ -40,13 +41,19 @@ class AudioManager: ObservableObject {
     private var rnnoiseProcessor: RNNoiseProcessor?
     private var currentSampleRate: Double = 48000.0
 
+    // Shared memory for virtual mic output
+    private var sharedAudioBuffer: SharedAudioBufferWriter?
+
     init() {
         loadInputDevices()
         setupDeviceChangeListener()
+        // Initialize shared memory
+        sharedAudioBuffer = SharedAudioBufferWriter()
     }
 
     deinit {
         stopAudioCapture()
+        sharedAudioBuffer?.disconnect()
     }
 
     // MARK: - Audio Capture with specific device
@@ -184,10 +191,19 @@ class AudioManager: ObservableObject {
             return
         }
 
+        // Activate shared memory for virtual mic
+        sharedAudioBuffer?.setActive(true)
+        DispatchQueue.main.async {
+            self.isVirtualMicActive = self.sharedAudioBuffer?.isConnected ?? false
+        }
+
         print("Started capturing from device: \(deviceID)")
     }
 
     private func stopAudioCapture() {
+        // Deactivate shared memory
+        sharedAudioBuffer?.setActive(false)
+
         if let unit = audioUnit {
             AudioOutputUnitStop(unit)
             AudioUnitUninitialize(unit)
@@ -195,12 +211,13 @@ class AudioManager: ObservableObject {
             audioUnit = nil
         }
 
-        // Reset waveforms
+        // Reset waveforms and virtual mic status
         DispatchQueue.main.async {
             self.inputWaveform = Array(repeating: 0, count: 100)
             self.outputWaveform = Array(repeating: 0, count: 100)
             self.inputLevel = 0
             self.outputLevel = 0
+            self.isVirtualMicActive = false
         }
     }
 
@@ -243,6 +260,13 @@ class AudioManager: ObservableObject {
                 let outputStep = max(1, processedSamples.count / 100)
                 for i in stride(from: 0, to: min(processedSamples.count, outputStep * 100), by: outputStep) {
                     processedWaveform.append(processedSamples[i])
+                }
+
+                // Write processed audio to shared memory for virtual mic
+                processedSamples.withUnsafeBufferPointer { ptr in
+                    if let baseAddress = ptr.baseAddress {
+                        _ = sharedAudioBuffer?.writeMono(samples: baseAddress, frameCount: UInt32(processedSamples.count))
+                    }
                 }
             }
         }

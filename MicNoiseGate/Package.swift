@@ -18,11 +18,16 @@ let package = Package(
                 .brew(["rnnoise"])
             ]
         ),
+        .target(
+            name: "SharedMemoryBridge",
+            path: "Sources/SharedMemoryBridge",
+            publicHeadersPath: "."
+        ),
         .executableTarget(
             name: "MicNoiseGate",
-            dependencies: ["CRNNoise"],
+            dependencies: ["CRNNoise", "SharedMemoryBridge"],
             path: "Sources",
-            exclude: ["RNNoise"],
+            exclude: ["RNNoise", "SharedMemoryBridge"],
             linkerSettings: [
                 .unsafeFlags(["-L/Users/xaero/.local/lib", "-lrnnoise"])
             ]
